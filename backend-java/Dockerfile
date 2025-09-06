@@ -1,36 +1,44 @@
-# Multi-stage build for Java Spring Boot application
-FROM openjdk:17-jdk-slim AS builder
+# ===============================
+# Backend (Spring Boot) Dockerfile
+# ===============================
+
+# Builder stage - uses JDK with Maven installed
+FROM eclipse-temurin:17-jdk-jammy AS builder
+
+# Install Maven
+RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy Maven wrapper and pom.xml
-COPY mvnw .
-COPY .mvn .mvn
+# Copy pom.xml first (to leverage Docker cache for dependencies)
 COPY pom.xml .
 
 # Download dependencies
-RUN ./mvnw dependency:go-offline -B
+RUN mvn dependency:go-offline
 
 # Copy source code
 COPY src src
 
-# Build the application
-RUN ./mvnw clean package -DskipTests
+# Build the application (skip tests for faster build)
+RUN mvn clean package -DskipTests
 
-# Production stage
-FROM openjdk:17-jre-slim
+
+# ===============================
+# Runtime stage - smaller JRE
+# ===============================
+FROM eclipse-temurin:17-jre-jammy
 
 # Install curl for health checks
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
+# Set working directory
 WORKDIR /app
 
 # Create logs directory
 RUN mkdir -p /app/logs
 
-# Copy the jar file from builder stage
+# Copy the built JAR from builder stage
 COPY --from=builder /app/target/*.jar app.jar
 
 # Create non-root user
@@ -38,7 +46,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 RUN chown -R appuser:appuser /app
 USER appuser
 
-# Expose port
+# Expose application port
 EXPOSE 8080
 
 # Health check

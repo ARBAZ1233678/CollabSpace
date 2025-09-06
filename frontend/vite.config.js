@@ -4,7 +4,7 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react({ jsxRuntime: 'classic' })],
   server: {
     port: 3000,
     host: true,
@@ -31,6 +31,7 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: true,
     rollupOptions: {
+      external: ['fs', 'path'],  // externalize node-only modules
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],

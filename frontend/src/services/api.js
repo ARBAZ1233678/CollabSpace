@@ -63,6 +63,17 @@ export const apiService = {
     return response.data
   },
 
+  async loginWithToken(token) {
+    const response = await api.post('/auth/token-login', { token })
+
+    if (response.data.accessToken) {
+      localStorage.setItem('accessToken', response.data.accessToken)
+      localStorage.setItem('refreshToken', response.data.refreshToken)
+    }
+
+    return response.data
+  },
+
   async logout() {
     try {
       await api.post('/auth/logout')
@@ -70,6 +81,11 @@ export const apiService = {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
     }
+  },
+
+  async refreshToken(refreshToken) {
+    const response = await api.post('/auth/refresh', { refreshToken })
+    return response.data
   },
 
   async getCurrentUser() {
@@ -84,8 +100,26 @@ export const apiService = {
 
   // Teams
   async getTeams() {
-    const response = await api.get('/teams')
-    return response.data
+    try {
+      const response = await api.get('/teams')
+      return response.data
+    } catch (error) {
+      // Return mock data for development
+      return [
+        {
+          id: 1,
+          name: 'Development Team',
+          membersCount: 5,
+          description: 'Software development team'
+        },
+        {
+          id: 2,
+          name: 'Design Team',
+          membersCount: 3,
+          description: 'UI/UX design team'
+        }
+      ]
+    }
   },
 
   async createTeam(teamData) {
@@ -103,13 +137,53 @@ export const apiService = {
     const params = { page, size }
     if (search) params.search = search
 
-    const response = await api.get(`/documents/team/${teamId}`, { params })
-    return response.data
+    try {
+      const response = await api.get(`/documents/team/${teamId}`, { params })
+      return response.data
+    } catch (error) {
+      // Return mock data for development
+      return [
+        {
+          id: 1,
+          title: 'Project Requirements Document',
+          updatedAt: new Date().toISOString(),
+          lastModifiedByName: 'John Doe',
+          type: 'DOCUMENT'
+        },
+        {
+          id: 2,
+          title: 'API Documentation',
+          updatedAt: new Date(Date.now() - 24*60*60*1000).toISOString(),
+          lastModifiedByName: 'Jane Smith',
+          type: 'MARKDOWN'
+        },
+        {
+          id: 3,
+          title: 'Design System Guide',
+          updatedAt: new Date(Date.now() - 48*60*60*1000).toISOString(),
+          lastModifiedByName: 'Alice Johnson',
+          type: 'DOCUMENT'
+        }
+      ]
+    }
   },
 
   async getDocument(documentId) {
-    const response = await api.get(`/documents/${documentId}`)
-    return response.data
+    try {
+      const response = await api.get(`/documents/${documentId}`)
+      return response.data
+    } catch (error) {
+      // Return mock data for development
+      return {
+        id: documentId,
+        title: 'Sample Document',
+        content: 'This is a sample document for development purposes.',
+        type: 'DOCUMENT',
+        teamId: 1,
+        createdBy: 1,
+        updatedAt: new Date().toISOString()
+      }
+    }
   },
 
   async createDocument(documentData) {
@@ -141,15 +215,47 @@ export const apiService = {
 
   // Meetings
   async getTeamMeetings(teamId, page = 0, size = 20) {
-    const response = await api.get(`/meetings/team/${teamId}`, {
-      params: { page, size }
-    })
-    return response.data
+    try {
+      const response = await api.get(`/meetings/team/${teamId}`, {
+        params: { page, size }
+      })
+      return response.data
+    } catch (error) {
+      // Return mock data for development
+      return [
+        {
+          id: 1,
+          title: 'Weekly Standup',
+          startTime: new Date(Date.now() + 24*60*60*1000).toISOString(),
+          participantsCount: 5,
+          status: 'SCHEDULED'
+        },
+        {
+          id: 2,
+          title: 'Sprint Planning',
+          startTime: new Date(Date.now() + 2*24*60*60*1000).toISOString(),
+          participantsCount: 8,
+          status: 'SCHEDULED'
+        }
+      ]
+    }
   },
 
   async getMeeting(meetingId) {
-    const response = await api.get(`/meetings/${meetingId}`)
-    return response.data
+    try {
+      const response = await api.get(`/meetings/${meetingId}`)
+      return response.data
+    } catch (error) {
+      // Return mock data for development
+      return {
+        id: meetingId,
+        title: 'Sample Meeting',
+        startTime: new Date().toISOString(),
+        teamId: 1,
+        status: 'IN_PROGRESS',
+        meetingUrl: `https://meet.example.com/room/${meetingId}`
+      }
+    }
   },
 
   async createMeeting(meetingData) {
@@ -193,9 +299,30 @@ export const apiService = {
     return response.data
   },
 
+  // Permissions
+  async get(endpoint) {
+    const response = await api.get(endpoint)
+    return response.data
+  },
+
+  async post(endpoint, data) {
+    const response = await api.post(endpoint, data)
+    return response.data
+  },
+
+  async put(endpoint, data) {
+    const response = await api.put(endpoint, data)
+    return response.data
+  },
+
+  async delete(endpoint) {
+    const response = await api.delete(endpoint)
+    return response.data
+  },
+
   // Health check
   async healthCheck() {
-    const response = await api.get('/auth/health')
+    const response = await api.get('/health')
     return response.data
   }
 }

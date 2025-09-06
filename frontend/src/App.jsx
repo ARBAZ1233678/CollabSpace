@@ -1,64 +1,73 @@
-import React from 'react'
+import React, { Suspense, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from 'react-query'
-import { ThemeProvider, createTheme } from '@mui/material/styles'
-import { CssBaseline, Box } from '@mui/material'
+import { ThemeProvider, createTheme, CssBaseline, Box, Typography, Button } from '@mui/material'
 import { Toaster } from 'react-hot-toast'
 
-// Import pages/components
-import Login from '@components/auth/Login'
-import Dashboard from '@components/dashboard/Dashboard'
-import DocumentEditor from '@components/document/DocumentEditor'
-import MeetingRoom from '@components/meeting/MeetingRoom'
+// Providers
+import { AuthProvider } from '@hooks/useAuth'
+import { SocketProvider } from '@services/socketService'
+
+// Components
+import Loading from '@components/common/Loading'
+import ErrorBoundary from '@components/common/ErrorBoundary'
 import Header from '@components/common/Header'
 import Sidebar from '@components/common/Sidebar'
-import Loading from '@components/common/Loading'
 
-// Import hooks and services
+// Auth Components
+import Login from '@components/auth/Login'
+
+// Main App Components
+import Dashboard from '@components/dashboard/Dashboard'
+import Profile from '@components/auth/Profile'
+import Analytics from '@components/dashboard/Analytics'
+import TeamOverview from '@components/dashboard/TeamOverview'
+
+// Document Components
+import DocumentList from '@components/document/DocumentList'
+import DocumentEditor from '@components/document/DocumentEditor'
+import CollaborativeEditor from '@components/document/CollaborativeEditor'
+
+// Meeting Components  
+import MeetingList from '@components/meeting/MeetingList'
+import MeetingRoom from '@components/meeting/MeetingRoom'
+import VideoCall from '@components/meeting/VideoCall'
+
+// Hooks
 import { useAuth } from '@hooks/useAuth'
-import { SocketProvider } from '@services/socketService'
-import ErrorBoundary from '@components/common/ErrorBoundary'
 
-// Import styles
-import '@styles/global.css'
-
-// Create React Query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 10 * 60 * 1000, // 10 minutes
-    },
-  },
-})
+// Utilities
+import { THEME_CONFIG } from '@utils/constants'
 
 // Create Material-UI theme
 const theme = createTheme({
   palette: {
-    mode: 'light',
     primary: {
-      main: '#2E86AB',
-      contrastText: '#ffffff',
+      main: THEME_CONFIG.PRIMARY_COLOR,
     },
     secondary: {
-      main: '#A23B72',
+      main: THEME_CONFIG.SECONDARY_COLOR,
     },
-    background: {
-      default: '#f5f5f5',
+    success: {
+      main: THEME_CONFIG.SUCCESS_COLOR,
+    },
+    warning: {
+      main: THEME_CONFIG.WARNING_COLOR,
+    },
+    error: {
+      main: THEME_CONFIG.ERROR_COLOR,
+    },
+    info: {
+      main: THEME_CONFIG.INFO_COLOR,
     },
   },
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-    h4: {
-      fontWeight: 600,
-    },
-    h5: {
-      fontWeight: 600,
-    },
-    h6: {
-      fontWeight: 600,
-    },
+    fontFamily: THEME_CONFIG.FONT_FAMILY,
+    h1: { fontWeight: 700 },
+    h2: { fontWeight: 700 },
+    h3: { fontWeight: 600 },
+    h4: { fontWeight: 600 },
+    h5: { fontWeight: 600 },
+    h6: { fontWeight: 600 },
   },
   components: {
     MuiButton: {
@@ -66,6 +75,7 @@ const theme = createTheme({
         root: {
           textTransform: 'none',
           borderRadius: 8,
+          fontWeight: 500,
         },
       },
     },
@@ -73,7 +83,14 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 12,
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
         },
       },
     },
@@ -81,36 +98,70 @@ const theme = createTheme({
 })
 
 // Protected Route Component
-function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth()
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth()
 
   if (loading) {
-    return <Loading />
+    return <Loading message="Checking authentication..." />
   }
 
-  if (!user) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
 
   return children
 }
 
-// Main Layout Component
-function MainLayout({ children }) {
+// Public Route Component (redirect if authenticated)
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth()
+
+  if (loading) {
+    return <Loading message="Loading..." />
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return children
+}
+
+// Main App Layout Component
+const AppLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
+  const [mobileOpen, setMobileOpen] = React.useState(false)
+
+  const handleSidebarToggle = () => {
+    if (window.innerWidth < 768) {
+      setMobileOpen(!mobileOpen)
+    } else {
+      setSidebarOpen(!sidebarOpen)
+    }
+  }
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Header onMenuClick={handleSidebarToggle} />
+
+      <Sidebar 
+        open={sidebarOpen}
+        mobileOpen={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+      />
+
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          mt: 8, // Account for header height
-          ml: sidebarOpen ? { xs: 0, md: '240px' } : 0,
-          transition: 'margin 0.3s ease',
+          pt: 8, // Account for header height
+          ml: { xs: 0, md: sidebarOpen ? '240px' : 0 },
+          transition: theme => theme.transitions.create(['margin'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+          }),
+          minHeight: '100vh',
+          bgcolor: 'background.default'
         }}
       >
         {children}
@@ -120,96 +171,244 @@ function MainLayout({ children }) {
 }
 
 // Main App Component
-function App() {
+const AppContent = () => {
+  const { initializeAuth } = useAuth()
+
+  useEffect(() => {
+    initializeAuth()
+  }, [initializeAuth])
+
+  return (
+    <Router>
+      <Routes>
+        {/* Public Routes */}
+        <Route 
+          path="/login" 
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          } 
+        />
+
+        {/* Protected Routes */}
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Dashboard />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Profile />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/analytics" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Analytics />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/teams" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <TeamOverview />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Document Routes */}
+        <Route 
+          path="/documents" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <DocumentList />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/document/:documentId" 
+          element={
+            <ProtectedRoute>
+              <DocumentEditor />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/document/:documentId/collaborate" 
+          element={
+            <ProtectedRoute>
+              <CollaborativeEditor />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Meeting Routes */}
+        <Route 
+          path="/meetings" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <MeetingList />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/meeting/:meetingId" 
+          element={
+            <ProtectedRoute>
+              <MeetingRoom />
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/call/:callId" 
+          element={
+            <ProtectedRoute>
+              <VideoCall />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Team Routes */}
+        <Route 
+          path="/team/:teamId" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <TeamOverview />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        <Route 
+          path="/team/:teamId/analytics" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Analytics />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Settings Routes */}
+        <Route 
+          path="/settings" 
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Profile />
+              </AppLayout>
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Default redirect */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+        {/* 404 Route */}
+        <Route 
+          path="*" 
+          element={
+            <AppLayout>
+              <Box 
+                display="flex" 
+                flexDirection="column" 
+                alignItems="center" 
+                justifyContent="center" 
+                minHeight="60vh"
+                textAlign="center"
+              >
+                <Typography variant="h4" gutterBottom>
+                  404 - Page Not Found
+                </Typography>
+                <Typography variant="body1" color="textSecondary" gutterBottom>
+                  The page you're looking for doesn't exist.
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  onClick={() => window.history.back()}
+                  sx={{ mt: 2 }}
+                >
+                  Go Back
+                </Button>
+              </Box>
+            </AppLayout>
+          } 
+        />
+      </Routes>
+    </Router>
+  )
+}
+
+// Root App Component with all providers
+const App = () => {
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <Router>
-            <SocketProvider>
-              <div className="App">
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/login" element={<Login />} />
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <AuthProvider>
+          <SocketProvider>
+            <Suspense fallback={<Loading message="Loading application..." />}>
+              <AppContent />
+            </Suspense>
 
-                  {/* Protected Routes */}
-                  <Route
-                    path="/"
-                    element={
-                      <ProtectedRoute>
-                        <MainLayout>
-                          <Dashboard />
-                        </MainLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute>
-                        <MainLayout>
-                          <Dashboard />
-                        </MainLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/document/:documentId"
-                    element={
-                      <ProtectedRoute>
-                        <MainLayout>
-                          <DocumentEditor />
-                        </MainLayout>
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  <Route
-                    path="/meeting/:meetingId"
-                    element={
-                      <ProtectedRoute>
-                        <MeetingRoom />
-                      </ProtectedRoute>
-                    }
-                  />
-
-                  {/* Catch all route */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-
-                {/* Toast notifications */}
-                <Toaster
-                  position="top-right"
-                  toastOptions={{
-                    duration: 4000,
-                    style: {
-                      background: '#363636',
-                      color: '#fff',
-                    },
-                    success: {
-                      duration: 3000,
-                      iconTheme: {
-                        primary: '#4CAF50',
-                        secondary: '#fff',
-                      },
-                    },
-                    error: {
-                      duration: 5000,
-                      iconTheme: {
-                        primary: '#F44336',
-                        secondary: '#fff',
-                      },
-                    },
-                  }}
-                />
-              </div>
-            </SocketProvider>
-          </Router>
-        </ThemeProvider>
-      </QueryClientProvider>
+            {/* Global Toast Notifications */}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: '#363636',
+                  color: '#fff',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                },
+                success: {
+                  iconTheme: {
+                    primary: THEME_CONFIG.SUCCESS_COLOR,
+                    secondary: '#fff',
+                  },
+                },
+                error: {
+                  iconTheme: {
+                    primary: THEME_CONFIG.ERROR_COLOR,
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </SocketProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   )
 }
